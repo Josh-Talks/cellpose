@@ -5,6 +5,7 @@ Copyright © 2023 Howard Hughes Medical Institute, Authored by Carsen Stringer a
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from pytorch3dunet.unet3d.feature_perturbation import DropOutPerturbation
 
 
 def batchconv(in_channels, out_channels, sz, conv_3D=False):
@@ -243,6 +244,10 @@ class CPnet(nn.Module):
         style0 = style
         if not self.style_on:
             style = style * 0
+        # operate on T0[-1]
+        #drop_layer = DropOutPerturbation(drop_rate=0.2)(T0[-1])
+        # set T0[-1] to drop_layer
+        #T0[-1] = drop_layer
         T1 = self.upsample(style, T0, self.mkldnn)
         T1 = self.output(T1)
         if self.mkldnn:
