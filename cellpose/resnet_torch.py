@@ -35,11 +35,13 @@ class resdown(nn.Module):
         self.proj = batchconv0(in_channels, out_channels, 1, conv_3D)
         for t in range(4):
             if t == 0:
-                self.conv.add_module("conv_%d" % t,
-                                     batchconv(in_channels, out_channels, sz, conv_3D))
+                self.conv.add_module(
+                    "conv_%d" % t, batchconv(in_channels, out_channels, sz, conv_3D)
+                )
             else:
-                self.conv.add_module("conv_%d" % t,
-                                     batchconv(out_channels, out_channels, sz, conv_3D))
+                self.conv.add_module(
+                    "conv_%d" % t, batchconv(out_channels, out_channels, sz, conv_3D)
+                )
 
     def forward(self, x):
         x = self.proj(x) + self.conv[1](self.conv[0](x))
@@ -53,14 +55,17 @@ class downsample(nn.Module):
         super().__init__()
         self.down = nn.Sequential()
         if max_pool:
-            self.maxpool = nn.MaxPool3d(2, stride=2) if conv_3D else nn.MaxPool2d(
-                2, stride=2)
+            self.maxpool = (
+                nn.MaxPool3d(2, stride=2) if conv_3D else nn.MaxPool2d(2, stride=2)
+            )
         else:
-            self.maxpool = nn.AvgPool3d(2, stride=2) if conv_3D else nn.AvgPool2d(
-                2, stride=2)
+            self.maxpool = (
+                nn.AvgPool3d(2, stride=2) if conv_3D else nn.AvgPool2d(2, stride=2)
+            )
         for n in range(len(nbase) - 1):
-            self.down.add_module("res_down_%d" % n,
-                                 resdown(nbase[n], nbase[n + 1], sz, conv_3D))
+            self.down.add_module(
+                "res_down_%d" % n, resdown(nbase[n], nbase[n + 1], sz, conv_3D)
+            )
 
     def forward(self, x):
         xd = []
@@ -102,26 +107,34 @@ class resup(nn.Module):
         super().__init__()
         self.concatenation = False
         self.conv = nn.Sequential()
-        self.conv.add_module("conv_0",
-                             batchconv(in_channels, out_channels, sz, conv_3D=conv_3D))
+        self.conv.add_module(
+            "conv_0", batchconv(in_channels, out_channels, sz, conv_3D=conv_3D)
+        )
         self.conv.add_module(
             "conv_1",
-            batchconvstyle(out_channels, out_channels, style_channels, sz,
-                           conv_3D=conv_3D))
+            batchconvstyle(
+                out_channels, out_channels, style_channels, sz, conv_3D=conv_3D
+            ),
+        )
         self.conv.add_module(
             "conv_2",
-            batchconvstyle(out_channels, out_channels, style_channels, sz,
-                           conv_3D=conv_3D))
+            batchconvstyle(
+                out_channels, out_channels, style_channels, sz, conv_3D=conv_3D
+            ),
+        )
         self.conv.add_module(
             "conv_3",
-            batchconvstyle(out_channels, out_channels, style_channels, sz,
-                           conv_3D=conv_3D))
+            batchconvstyle(
+                out_channels, out_channels, style_channels, sz, conv_3D=conv_3D
+            ),
+        )
         self.proj = batchconv0(in_channels, out_channels, 1, conv_3D=conv_3D)
 
     def forward(self, x, y, style, mkldnn=False):
         x = self.proj(x) + self.conv[1](style, self.conv[0](x), y=y, mkldnn=mkldnn)
-        x = x + self.conv[3](style, self.conv[2](style, x, mkldnn=mkldnn),
-                             mkldnn=mkldnn)
+        x = x + self.conv[3](
+            style, self.conv[2](style, x, mkldnn=mkldnn), mkldnn=mkldnn
+        )
         return x
 
 
@@ -135,7 +148,7 @@ class make_style(nn.Module):
     def forward(self, x0):
         style = self.avg_pool(x0, kernel_size=x0.shape[2:])
         style = self.flatten(style)
-        style = style / torch.sum(style**2, axis=1, keepdim=True)**.5
+        style = style / torch.sum(style**2, axis=1, keepdim=True) ** 0.5
         return style
 
 
@@ -146,8 +159,10 @@ class upsample(nn.Module):
         self.upsampling = nn.Upsample(scale_factor=2, mode="nearest")
         self.up = nn.Sequential()
         for n in range(1, len(nbase)):
-            self.up.add_module("res_up_%d" % (n - 1),
-                               resup(nbase[n], nbase[n - 1], nbase[-1], sz, conv_3D))
+            self.up.add_module(
+                "res_up_%d" % (n - 1),
+                resup(nbase[n], nbase[n - 1], nbase[-1], sz, conv_3D),
+            )
 
     def forward(self, style, xd, mkldnn=False):
         x = self.up[-1](xd[-1], xd[-1], style, mkldnn=mkldnn)
@@ -191,8 +206,17 @@ class CPnet(nn.Module):
 
     """
 
-    def __init__(self, nbase, nout, sz, mkldnn=False, conv_3D=False, max_pool=True,
-                 diam_mean=30.):
+    def __init__(
+        self,
+        nbase,
+        nout,
+        sz,
+        mkldnn=False,
+        conv_3D=False,
+        max_pool=True,
+        diam_mean=30.0,
+        feature_perturbation=None,
+    ):
         super().__init__()
         self.nchan = nbase[0]
         self.nbase = nbase
@@ -209,10 +233,13 @@ class CPnet(nn.Module):
         self.upsample = upsample(nbaseup, sz, conv_3D=conv_3D)
         self.make_style = make_style(conv_3D=conv_3D)
         self.output = batchconv(nbaseup[0], nout, 1, conv_3D=conv_3D)
-        self.diam_mean = nn.Parameter(data=torch.ones(1) * diam_mean,
-                                      requires_grad=False)
-        self.diam_labels = nn.Parameter(data=torch.ones(1) * diam_mean,
-                                        requires_grad=False)
+        self.diam_mean = nn.Parameter(
+            data=torch.ones(1) * diam_mean, requires_grad=False
+        )
+        self.diam_labels = nn.Parameter(
+            data=torch.ones(1) * diam_mean, requires_grad=False
+        )
+        self.feature_perturbation = feature_perturbation
 
     @property
     def device(self):
@@ -244,10 +271,11 @@ class CPnet(nn.Module):
         style0 = style
         if not self.style_on:
             style = style * 0
-        # operate on T0[-1]
-        #drop_layer = DropOutPerturbation(drop_rate=0.2)(T0[-1])
-        # set T0[-1] to drop_layer
-        #T0[-1] = drop_layer
+        if self.feature_perturbation is not None:
+            # operate on T0[-1]
+            perturbed_feature = self.feature_perturbation(T0[-1])
+            # set T0[-1] to drop_layer
+            T0[-1] = perturbed_feature
         T1 = self.upsample(style, T0, self.mkldnn)
         T1 = self.output(T1)
         if self.mkldnn:
@@ -263,7 +291,7 @@ class CPnet(nn.Module):
             filename (str): The path to the file where the model will be saved.
         """
         torch.save(self.state_dict(), filename)
-    
+
     def load_model(self, filename, device=None):
         """
         Load the model from a file.
@@ -275,8 +303,14 @@ class CPnet(nn.Module):
         if (device is not None) and (device.type != "cpu"):
             state_dict = torch.load(filename, map_location=device)
         else:
-            self.__init__(self.nbase, self.nout, self.sz, self.mkldnn, self.conv_3D,
-                          self.diam_mean)
+            self.__init__(
+                self.nbase,
+                self.nout,
+                self.sz,
+                self.mkldnn,
+                self.conv_3D,
+                self.diam_mean,
+            )
             state_dict = torch.load(filename, map_location=torch.device("cpu"))
 
         if state_dict["output.2.weight"].shape[0] != self.nout:
@@ -286,7 +320,9 @@ class CPnet(nn.Module):
         else:
             self.load_state_dict(
                 dict([(name, param) for name, param in state_dict.items()]),
-                strict=False)
+                strict=False,
+            )
+
 
 class CPnetBioImageIO(CPnet):
     """
@@ -308,7 +344,6 @@ class CPnetBioImageIO(CPnet):
         """
         output_tensor, style_tensor, downsampled_tensors = super().forward(x)
         return output_tensor, style_tensor, *downsampled_tensors
-    
 
     def load_model(self, filename, device=None):
         """
@@ -321,9 +356,17 @@ class CPnetBioImageIO(CPnet):
         if (device is not None) and (device.type != "cpu"):
             state_dict = torch.load(filename, map_location=device, weights_only=True)
         else:
-            self.__init__(self.nbase, self.nout, self.sz, self.mkldnn, self.conv_3D,
-                          self.diam_mean)
-            state_dict = torch.load(filename, map_location=torch.device("cpu"), weights_only=True)
+            self.__init__(
+                self.nbase,
+                self.nout,
+                self.sz,
+                self.mkldnn,
+                self.conv_3D,
+                self.diam_mean,
+            )
+            state_dict = torch.load(
+                filename, map_location=torch.device("cpu"), weights_only=True
+            )
 
         self.load_state_dict(state_dict)
 
@@ -343,6 +386,5 @@ class CPnetBioImageIO(CPnet):
                     self.state_dict()[name].copy_(state_dict[name])
         else:
             super().load_state_dict(
-                {name: param for name, param in state_dict.items()},
-                strict=False)
-
+                {name: param for name, param in state_dict.items()}, strict=False
+            )
